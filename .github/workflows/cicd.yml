@@ -22,11 +22,12 @@ jobs:
 
       - name: Login to Amazon ECR
         run: |
-         aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 049820221364.dkr.ecr.us-east-1.amazonaws.com
+         aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin 049820221364.dkr.ecr.us-east-1.amazonaws.com
 
       - name: Build, tag, and push image to Amazon ECR
         run: |
-          docker build -t mediplus${{ github.run_number }} .
+          docker build -t mediplus:${{ github.run_number }} .
+
           docker tag mediplus:${{ github.run_number }} 049820221364.dkr.ecr.us-east-1.amazonaws.com/mediplus:${{ github.run_number }}
           docker push 049820221364.dkr.ecr.us-east-1.amazonaws.com/mediplus:${{ github.run_number }}
 
