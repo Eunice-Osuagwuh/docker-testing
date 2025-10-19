@@ -1,4 +1,4 @@
-name: Build and deploy to ECR & EC2
+name: Build and Push Docker Image to ECRr
 
 on:
   push:
@@ -11,10 +11,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v3
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -22,18 +22,14 @@ jobs:
 
       - name: Login to Amazon ECR
         run: |
-          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
-          | docker login --username AWS --password-stdin 049820221364.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 049820221364.dkr.ecr.us-east-1.amazonaws.com
 
-      - name: Build, tag, and push image to Amazon ECR
+      - name: Build and push Docker image to Amazon ECR
         run: |
-          IMAGE_URI=049820221364.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/mediplus:${{ github.run_number }}
+          docker build -t mediplus:${{ github.run_number }} .
+          docker tag mediplus:${{ github.run_number }} 0498202213641.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/mediplus:${{ github.run_number }}
+          docker push 049820221364.dkr.ecr.us-east-1.${{ secrets.AWS_REGION }}.amazonaws.com/mediplus:${{ github.run_number }}
 
-          echo "Building Docker image..."
-          docker build -t $IMAGE_URI .
-
-          echo "Pushing image to ECR..."
-          docker push $IMAGE_URI
 
   deploy:
     runs-on: ubuntu-latest
@@ -48,26 +44,16 @@ jobs:
       - name: Deploy to EC2 instance
         run: |
           ssh -o StrictHostKeyChecking=no -i mykey.pem ubuntu@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
-            set -e
-
-            AWS_REGION=${{ secrets.AWS_REGION }}
-            IMAGE_URI=049820221364.dkr.ecr.${AWS_REGION}.amazonaws.com/mediplus:${{ github.run_number }}
-
-            echo "Logging into ECR..."
-            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 049820221364.dkr.ecr.${AWS_REGION}.amazonaws.com
 
             echo "Pulling latest Docker image..."
-            docker pull $IMAGE_URI
+            docker pull 049820221364.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/mediplus:${{ github.run_number }}
 
             echo "Stopping and removing old container (if running)..."
             docker stop mediplus || true
             docker rm mediplus || true
 
             echo "Running new container..."
-            docker run -d --restart unless-stopped --name mediplus -p 80:80 $IMAGE_URI
+            docker run -d --name mediplus -p 80:80 049820221364.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/mediplus:${{ github.run_number }}
 
-            echo "Cleaning up old images..."
-            docker system prune -f
-
-            echo "✅ Deployment complete!"
+            echo "Deployment complete!"
           EOF
