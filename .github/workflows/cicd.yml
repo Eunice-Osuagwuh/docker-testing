@@ -1,4 +1,4 @@
-name: build and Push to ECR
+name: Build and Push to ECR
 
 on:
   push:
